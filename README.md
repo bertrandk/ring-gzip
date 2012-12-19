@@ -26,8 +26,8 @@ in a `->` function).
   (-> handler
     (wrap-keyword-params)
     (wrap-nested-params)
-    (wrap-params
-    (wrap-gzip))))
+    (wrap-params)
+    (wrap-gzip)))
 ```
 
 ## License
