@@ -14,7 +14,7 @@
     ;; Be aggressive in supporting clients with mangled headers (due to
     ;; proxies, av software, buggy browsers, etc...)
     (seq
-      (re-find
+      (re-seq
         #"(gzip\s*,?\s*(gzip|deflate)?|X{4,13}|~{4,13}|\-{4,13})"
         accepts))))
 
@@ -47,7 +47,7 @@
         (seq? body)
         (instance? InputStream body)
         (and (instance? File body) 
-             (re-find #"(?i)\.(htm|html|css|js|json|xml)" (pr-str body))))))
+             (re-seq #"(?i)\.(htm|html|css|js|json|xml)" (pr-str body))))))
 
 (def ^:private min-length 859)
 
