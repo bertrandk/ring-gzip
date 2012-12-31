@@ -13,10 +13,9 @@
   (if-let [accepts (get-in req [:headers "accept-encoding"])]
     ;; Be aggressive in supporting clients with mangled headers (due to
     ;; proxies, av software, buggy browsers, etc...)
-    (seq
-      (re-seq
-        #"(gzip\s*,?\s*(gzip|deflate)?|X{4,13}|~{4,13}|\-{4,13})"
-        accepts))))
+    (re-seq
+      #"(gzip\s*,?\s*(gzip|deflate)?|X{4,13}|~{4,13}|\-{4,13})"
+      accepts)))
 
 ;; Set Vary to make sure proxies don't deliver the wrong content.
 (defn- set-response-headers
