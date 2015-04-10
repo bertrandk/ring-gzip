@@ -81,10 +81,30 @@
                         req (req :headers {"accept-encoding" "gzip"})
                         resp ((wrap-gzip handler) req)]
                     (is (= (get-in resp [:headers "Vary"])
-                           "Accept-Language, Accept-Encoding"))
-                    (is (= (get-in resp [:headers "Content-Encoding"])
-                           "gzip"))
-                    (is (= (get-in resp [:headers "Content Length"]) nil))))
+                           "Accept-Language, Accept-Encoding")))
+                  (let [handler (constantly {:status 200
+                                             :headers {"Vary" "Accept-Language"}
+                                             :body long-string})
+                        req (req :headers {"accept-encoding" "gzip"})
+                        resp ((wrap-gzip handler) req)]
+                    (is (= (get-in resp [:headers "Vary"])
+                           "Accept-Language, Accept-Encoding"))))
+
+         (testing "response-headers-with-existing-content-length"
+                  (let [handler (constantly {:status 200
+                                             :headers {"content-length" (count long-string)}
+                                             :body long-string})
+                        req (req :headers {"accept-encoding" "gzip"})
+                        resp ((wrap-gzip handler) req)]
+                    (is (= (get-in resp [:headers "content-length"])
+                           nil)))
+                  (let [handler (constantly {:status 200
+                                             :headers {"Content-Length" (count long-string)}
+                                             :body long-string})
+                        req (req :headers {"accept-encoding" "gzip"})
+                        resp ((wrap-gzip handler) req)]
+                    (is (= (get-in resp [:headers "Content-Length"])
+                           nil))))
 
          (testing "supported-statuses"
                   (doseq [status [200, 201, 202, 203, 204, 205, 403, 404]
