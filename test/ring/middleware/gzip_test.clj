@@ -140,3 +140,24 @@
                                 resp ((wrap-gzip handler) req)]]
                     (is (= (get-in resp [:headers "Content-Encoding"])
                            "gzip")))))
+
+(deftest test-wrap-gzip-static
+         (testing "Precompressed static resource file response"
+                  (let [handler (constantly {:status 200
+                                             :headers {}
+                                             :body (io/resource "text.txt")})
+                        req (req :headers {"accept-encoding" "gzip"})
+                        resp ((wrap-gzip-static handler) req)]
+                    (is (= (get-in resp [:headers "Content-Encoding"])
+                           "gzip"))
+                    (is (= (.toURI (:body resp)) (.toURI (io/resource "text.txt.gz"))))))
+
+         (testing "Precompressed static file response"
+                  (let [handler (constantly {:status 200
+                                             :headers {}
+                                             :body (io/file "test/text.txt")})
+                        req (req :headers {"accept-encoding" "gzip"})
+                        resp ((wrap-gzip-static handler) req)]
+                    (is (= (get-in resp [:headers "Content-Encoding"])
+                           "gzip"))
+                    (is (= (:body resp) (io/file "test/text.txt.gz"))))))

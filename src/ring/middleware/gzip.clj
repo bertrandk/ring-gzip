@@ -6,6 +6,7 @@
                     File
                     PipedInputStream
                     PipedOutputStream)
+           (java.net URL)
            (java.util.zip GZIPOutputStream)))
 
 (defn- accepts-gzip?
@@ -18,18 +19,22 @@
       accepts)))
 
 ;; Set Vary to make sure proxies don't deliver the wrong content.
-(defn- set-response-headers
+(defn- set-encoding-headers
   [headers]
   (if-let [vary (get headers "vary")]
     (-> headers
       (assoc "Vary" (str vary ", Accept-Encoding"))
       (assoc "Content-Encoding" "gzip")
-      (dissoc "Content-Length")
       (dissoc "vary"))
     (-> headers
       (assoc "Vary" "Accept-Encoding")
-      (assoc "Content-Encoding" "gzip")
-      (dissoc "Content-Length"))))
+      (assoc "Content-Encoding" "gzip"))))
+
+(defn- set-response-headers
+  [headers]
+  (-> headers
+    (set-encoding-headers)
+    (dissoc "Content-Length")))
 
 (def ^:private supported-status? #{200, 201, 202, 203, 204, 205 403, 404})
 
@@ -86,6 +91,12 @@
     (update-in [:headers] set-response-headers)
     (update-in [:body] compress-body)))
 
+(defn- gzip-static-response
+  [resp gzfile]
+  (-> resp
+    (update-in [:headers] set-encoding-headers)
+    (assoc :body gzfile)))
+
 (defn wrap-gzip
   "Middleware that compresses responses with gzip for supported user-agents."
   [handler]
@@ -96,3 +107,27 @@
           (gzip-response resp)
           resp))
       (handler req))))
+
+(defn wrap-gzip-static
+  "Middleware that returns pre-compressed files (if available) for supported user-agents.
+
+  Inspired by the NGiNX module: http://nginx.org/en/docs/http/ngx_http_gzip_static_module.html
+
+  Given a resource or File body
+   and the same file with .gz appended exists
+   it will return the .gz one instead."
+  [handler]
+  (fn [req]
+    (let [{body :body :as resp} (handler req)
+          ^File file (if (instance? File body)
+                       body
+                       (if (instance? URL body)
+                         (try (io/file body) (catch IllegalArgumentException e))))]
+      (if (and file (accepts-gzip? req))
+        (let [gzfile (File. (str file ".gz"))]
+          (if (.exists gzfile)
+            (gzip-static-response resp gzfile)
+          ;else
+            resp))
+      ;else
+        resp))))
