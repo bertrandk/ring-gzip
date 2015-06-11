@@ -56,7 +56,7 @@
     (cond
       (string? body) (> (count body) min-length)
       (seq? body) (> (count body) min-length)
-      (instance? File body) (> (.length body) min-length)
+      (instance? File body) (> (.length ^File body) min-length)
       :else true)))
 
 (defn- supported-response?
@@ -77,7 +77,7 @@
           (doseq [string body] (io/copy (str string) out))
           (io/copy body out)))
       (when (instance? Closeable body)
-        (.close body)))
+        (.close ^Closeable body)))
     p-in))
 
 (defn- gzip-response

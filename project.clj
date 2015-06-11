@@ -3,4 +3,6 @@
                user-agents."
   :url "https://github.com/bertrandk/ring-gzip"
   :license {:name "MIT-style license (see LICENSE for details)."}
+  :global-vars {*warn-on-reflection* true}
+  :profiles {:test {:resource-paths ["test"]}}
   :dependencies [[org.clojure/clojure "1.5.1"]])
