@@ -16,7 +16,7 @@
     ;; proxies, av software, buggy browsers, etc...)
     (re-seq
       #"(gzip\s*,?\s*(gzip|deflate)?|X{4,13}|~{4,13}|\-{4,13})"
-      accepts)))
+      (str accepts))))
 
 ;; Set Vary to make sure proxies don't deliver the wrong content.
 (defn- set-encoding-headers
