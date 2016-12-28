@@ -20,16 +20,16 @@
 ;; Set Vary to make sure proxies don't deliver the wrong content.
 (defn- set-response-headers
   [headers]
-  (if-let [vary (get headers "vary")]
+  (if-let [vary (or (get headers "vary") (get headers "Vary"))]
     (-> headers
       (assoc "Vary" (str vary ", Accept-Encoding"))
       (assoc "Content-Encoding" "gzip")
-      (dissoc "Content-Length")
+      (dissoc "Content-Length" "content-length")
       (dissoc "vary"))
     (-> headers
       (assoc "Vary" "Accept-Encoding")
       (assoc "Content-Encoding" "gzip")
-      (dissoc "Content-Length"))))
+      (dissoc "Content-Length" "content-length"))))
 
 (def ^:private supported-status? #{200, 201, 202, 203, 204, 205 403, 404})
 
@@ -45,7 +45,7 @@
     (or (string? body)
         (seq? body)
         (instance? InputStream body)
-        (and (instance? File body) 
+        (and (instance? File body)
              (re-seq #"(?i)\.(htm|html|css|js|json|xml)" (pr-str body))))))
 
 (def ^:private min-length 859)
