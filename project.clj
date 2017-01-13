@@ -1,4 +1,4 @@
-(defproject bk/ring-gzip "0.2.0"
+(defproject bk/ring-gzip "0.2.1"
   :description "Middleware that compresses repsonses with gzip for supported
                user-agents."
   :url "https://github.com/bertrandk/ring-gzip"

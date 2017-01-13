@@ -6,7 +6,7 @@ Ring middleware for gzip compression.
 
 To use this libary, add the following to your Leingingen `:dependencies`:
 
-    [bk/ring-gzip "0.1.1"]
+    [bk/ring-gzip "0.2.1"]
 
 ## Usage
 
