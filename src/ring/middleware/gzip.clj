@@ -35,7 +35,7 @@
 
 (defn- unencoded-type?
   [headers]
-  (if (headers "content-encoding")
+  (if (or (headers "Content-Encoding") (headers "content-encoding"))
     false
     true))
 
