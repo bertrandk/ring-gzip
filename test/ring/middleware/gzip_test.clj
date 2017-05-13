@@ -123,6 +123,14 @@
                                 resp ((wrap-gzip handler) req)]]
                     (is (not= (get-in resp [:headers "Content-Encoding"])
                               "gzip"))))
+  
+         (testing "nil headers"
+                  (let [handler (constantly {:status 200
+                                             :body short-string})
+                        req (req :headers nil :request-method :head)
+                        resp ((wrap-gzip handler) req)]
+                    (is (not= (get-in resp [:headers "Content-Encoding"])
+                              "gzip"))))
 
          (testing "response-headers-with-encoded-type"
                   (let [handler (constantly {:status 200
