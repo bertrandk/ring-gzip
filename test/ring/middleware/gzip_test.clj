@@ -140,6 +140,14 @@
                         req (req :headers {"accept-encoding" "deflate, gzip"})
                         resp ((wrap-gzip handler) req)]
                     (is (not= (get-in resp [:headers "Content-Encoding"])
+                              "gzip")))
+                  (let [handler (constantly {:status 200
+                                             :headers {"Content-Encoding"
+                                                       "deflate"}
+                                             :body long-string})
+                        req (req :headers {"accept-encoding" "deflate, gzip"})
+                        resp ((wrap-gzip handler) req)]
+                    (is (not= (get-in resp [:headers "Content-Encoding"])
                               "gzip"))))
 
          (testing "small-response-size"
