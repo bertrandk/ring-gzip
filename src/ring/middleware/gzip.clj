@@ -86,7 +86,7 @@
     (update-in [:headers] set-response-headers)
     (update-in [:body] compress-body)))
 
-(defn gzip-response-if [req resp]
+(defn- gzip-response-if [req resp]
   (if (and (accepts-gzip? req)
            (supported-response? resp))
       (gzip-response resp)
