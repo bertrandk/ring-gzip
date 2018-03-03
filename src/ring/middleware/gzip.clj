@@ -86,13 +86,21 @@
     (update-in [:headers] set-response-headers)
     (update-in [:body] compress-body)))
 
+(defn- gzip-response-if [req resp]
+  (if (and (accepts-gzip? req)
+           (supported-response? resp))
+      (gzip-response resp)
+      resp))
+
 (defn wrap-gzip
   "Middleware that compresses responses with gzip for supported user-agents."
   [handler]
-  (fn [req]
-    (if (accepts-gzip? req)
-      (let [resp (handler req)]
-        (if (supported-response? resp)
-          (gzip-response resp)
-          resp))
-      (handler req))))
+  (fn
+    ([req]
+     (gzip-response-if req (handler req)))
+    ([req respond raise]
+     (handler req
+              (fn [resp]
+                (-> (gzip-response-if req resp)
+                    respond))
+              raise))))
