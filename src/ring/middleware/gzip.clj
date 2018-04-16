@@ -62,7 +62,7 @@
 (defn- supported-response?
   [resp]
   (let [{:keys [status headers]} resp]
-    (and (supported-status? status)
+    (and (supported-status? (or status 200))
          (unencoded-type? headers)
          (supported-type? resp)
          (supported-size? resp))))
