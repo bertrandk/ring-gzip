@@ -51,6 +51,7 @@
   ((wrap-gzip handler) req))
 
 (deftest test-wrap-gzip
+
          (doseq [response [async-response sync-response]]
            (testing "valid-accept-encoding"
                     (doseq [accept-encoding ["gzip" "gzip,deflate"
