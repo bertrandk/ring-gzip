@@ -38,141 +38,153 @@
    :request-method request-method
    :headers headers})
 
+(defn async-response [handler req]
+  (let [async-handler (-> (fn [req respond raise]
+                            (respond (handler req)))
+                          wrap-gzip)
+        response (promise)
+        respond (fn [resp] (deliver response resp))]
+    (async-handler req respond identity)
+    @response))
+
+(defn sync-response [handler req]
+  ((wrap-gzip handler) req))
+
 (deftest test-wrap-gzip
+         (doseq [response [async-response sync-response]]
+           (testing "valid-accept-encoding"
+                    (doseq [accept-encoding ["gzip" "gzip,deflate"
+                                             "gzip,deflate,sdch" "deflate,gzip"
+                                             "gzip, deflate" "XXXX" "~~~~"
+                                             "-------------"]
+                            :let [handler (constantly {:status 200 :headers {}
+                                                       :body long-string})
+                                  req (req :headers {"accept-encoding"
+                                                     accept-encoding})
+                                  resp (response handler req)]]
+                      (is (true? (instance? java.io.PipedInputStream
+                                            (resp :body))))))
 
-         (testing "valid-accept-encoding"
-                  (doseq [accept-encoding ["gzip" "gzip,deflate"
-                                           "gzip,deflate,sdch" "deflate,gzip"
-                                           "gzip, deflate" "XXXX" "~~~~"
-                                           "-------------"]
-                          :let [handler (constantly {:status 200 :headers {}
-                                                     :body long-string})
-                                req (req :headers {"accept-encoding"
-                                                   accept-encoding})
-                                resp ((wrap-gzip handler) req)]]
-                    (is (true? (instance? java.io.PipedInputStream
-                                          (resp :body))))))
+           (testing "invalid-accept-encoding"
+                    (doseq [accept-encoding ["" "deflate" "deflate,sdch"
+                                             " deflate"]
+                            :let [handler (constantly {:status 200 :headers {}
+                                                       :body long-string})
+                                  req (req :headers {"accept-encoding"
+                                                     accept-encoding})
+                                  resp (response handler req)]]
+                      (is (false? (instance? java.io.PipedInputStream
+                                             (resp :body))))))
 
-         (testing "invalid-accept-encoding"
-                  (doseq [accept-encoding ["" "deflate" "deflate,sdch"
-                                           " deflate"]
-                          :let [handler (constantly {:status 200 :headers {}
-                                                     :body long-string})
-                                req (req :headers {"accept-encoding"
-                                                   accept-encoding})
-                                resp ((wrap-gzip handler) req)]]
-                    (is (false? (instance? java.io.PipedInputStream
-                                           (resp :body))))))
+           (testing "response-headers"
+                    (let [handler (constantly {:status 200 :headers {}
+                                               :body long-string})
+                          req (req :headers {"accept-encoding" "gzip"})
+                          resp (response handler req)]
+                      (is (= (get-in resp [:headers "Vary"]) "Accept-Encoding"))
+                      (is (= (get-in resp [:headers "Content-Encoding"])
+                             "gzip"))
+                      (is (= (get-in resp [:headers "Content Length"]) nil))))
 
-         (testing "response-headers"
-                  (let [handler (constantly {:status 200 :headers {}
-                                             :body long-string})
-                        req (req :headers {"accept-encoding" "gzip"})
-                        resp ((wrap-gzip handler) req)]
-                    (is (= (get-in resp [:headers "Vary"]) "Accept-Encoding"))
-                    (is (= (get-in resp [:headers "Content-Encoding"])
-                           "gzip"))
-                    (is (= (get-in resp [:headers "Content Length"]) nil))))
+           (testing "response-headers-with-existing-vary"
+                    (let [handler (constantly {:status 200
+                                               :headers {"vary" "Accept-Language"}
+                                               :body long-string})
+                          req (req :headers {"accept-encoding" "gzip"})
+                          resp (response handler req)]
+                      (is (= (get-in resp [:headers "Vary"])
+                             "Accept-Language, Accept-Encoding")))
+                    (let [handler (constantly {:status 200
+                                               :headers {"Vary" "Accept-Language"}
+                                               :body long-string})
+                          req (req :headers {"accept-encoding" "gzip"})
+                          resp (response handler req)]
+                      (is (= (get-in resp [:headers "Vary"])
+                             "Accept-Language, Accept-Encoding"))))
 
-         (testing "response-headers-with-existing-vary"
-                  (let [handler (constantly {:status 200
-                                             :headers {"vary" "Accept-Language"}
-                                             :body long-string})
-                        req (req :headers {"accept-encoding" "gzip"})
-                        resp ((wrap-gzip handler) req)]
-                    (is (= (get-in resp [:headers "Vary"])
-                           "Accept-Language, Accept-Encoding")))
-                  (let [handler (constantly {:status 200
-                                             :headers {"Vary" "Accept-Language"}
-                                             :body long-string})
-                        req (req :headers {"accept-encoding" "gzip"})
-                        resp ((wrap-gzip handler) req)]
-                    (is (= (get-in resp [:headers "Vary"])
-                           "Accept-Language, Accept-Encoding"))))
+           (testing "response-headers-with-existing-content-length"
+                    (let [handler (constantly {:status 200
+                                               :headers {"content-length" (count long-string)}
+                                               :body long-string})
+                          req (req :headers {"accept-encoding" "gzip"})
+                          resp (response handler req)]
+                      (is (= (get-in resp [:headers "content-length"])
+                             nil)))
+                    (let [handler (constantly {:status 200
+                                               :headers {"Content-Length" (count long-string)}
+                                               :body long-string})
+                          req (req :headers {"accept-encoding" "gzip"})
+                          resp (response handler req)]
+                      (is (= (get-in resp [:headers "Content-Length"])
+                             nil))))
 
-         (testing "response-headers-with-existing-content-length"
-                  (let [handler (constantly {:status 200
-                                             :headers {"content-length" (count long-string)}
-                                             :body long-string})
-                        req (req :headers {"accept-encoding" "gzip"})
-                        resp ((wrap-gzip handler) req)]
-                    (is (= (get-in resp [:headers "content-length"])
-                           nil)))
-                  (let [handler (constantly {:status 200
-                                             :headers {"Content-Length" (count long-string)}
-                                             :body long-string})
-                        req (req :headers {"accept-encoding" "gzip"})
-                        resp ((wrap-gzip handler) req)]
-                    (is (= (get-in resp [:headers "Content-Length"])
-                           nil))))
+           (testing "supported-statuses"
+                    (doseq [status [200, 201, 202, 203, 204, 205, 403, 404]
+                            :let [handler (constantly {:status status :headers {}
+                                                       :body long-string})
+                                  req (req :headers {"accept-encoding" "gzip"})
+                                  resp (response handler req)]]
+                      (is (= (get-in resp [:headers "Content-Encoding"])
+                             "gzip"))))
 
-         (testing "supported-statuses"
-                  (doseq [status [200, 201, 202, 203, 204, 205, 403, 404]
-                          :let [handler (constantly {:status status :headers {}
-                                                     :body long-string})
-                                req (req :headers {"accept-encoding" "gzip"})
-                                resp ((wrap-gzip handler) req)]]
-                    (is (= (get-in resp [:headers "Content-Encoding"])
-                           "gzip"))))
+           (testing "unsupported-statuses"
+                    (doseq [status [206, 301, 302, 304, 305, 307, 400, 401, 502]
+                            :let [handler (constantly {:status status :headers {}
+                                                       :body long-string})
+                                  req (req :headers {"accept-encoding" "gzip"})
+                                  resp (response handler req)]]
+                      (is (not= (get-in resp [:headers "Content-Encoding"])
+                                "gzip"))))
 
-         (testing "unsupported-statuses"
-                  (doseq [status [206, 301, 302, 304, 305, 307, 400, 401, 502]
-                          :let [handler (constantly {:status status :headers {}
-                                                     :body long-string})
-                                req (req :headers {"accept-encoding" "gzip"})
-                                resp ((wrap-gzip handler) req)]]
-                    (is (not= (get-in resp [:headers "Content-Encoding"])
-                              "gzip"))))
-  
-         (testing "nil headers"
-                  (let [handler (constantly {:status 200
-                                             :body short-string})
-                        req (req :headers nil :request-method :head)
-                        resp ((wrap-gzip handler) req)]
-                    (is (not= (get-in resp [:headers "Content-Encoding"])
-                              "gzip"))))
+           (testing "response-headers-with-encoded-type"
+                    (let [handler (constantly {:status 200
+                                               :headers {"content-encoding"
+                                                         "deflate"}
+                                               :body long-string})
+                          req (req :headers {"accept-encoding" "deflate, gzip"})
+                          resp (response handler req)]
+                      (is (not= (get-in resp [:headers "Content-Encoding"])
+                                "gzip")))
+                    (let [handler (constantly {:status 200
+                                               :headers {"Content-Encoding"
+                                                         "deflate"}
+                                               :body long-string})
+                          req (req :headers {"accept-encoding" "deflate, gzip"})
+                          resp (response handler req)]
+                      (is (not= (get-in resp [:headers "Content-Encoding"])
+                                "gzip"))))
 
-         (testing "response-headers-with-encoded-type"
-                  (let [handler (constantly {:status 200
-                                             :headers {"content-encoding"
-                                                       "deflate"}
-                                             :body long-string})
-                        req (req :headers {"accept-encoding" "deflate, gzip"})
-                        resp ((wrap-gzip handler) req)]
-                    (is (not= (get-in resp [:headers "Content-Encoding"])
-                              "gzip")))
-                  (let [handler (constantly {:status 200
-                                             :headers {"Content-Encoding"
-                                                       "deflate"}
-                                             :body long-string})
-                        req (req :headers {"accept-encoding" "deflate, gzip"})
-                        resp ((wrap-gzip handler) req)]
-                    (is (not= (get-in resp [:headers "Content-Encoding"])
-                              "gzip"))))
+           (testing "nil headers"
+                    (let [handler (constantly {:status 200
+                                               :body short-string})
+                          req (req :headers nil :request-method :head)
+                          resp (response handler req)]
+                      (is (not= (get-in resp [:headers "Content-Encoding"])
+                                "gzip"))))
 
-         (testing "small-response-size"
-                  (let [handler (constantly {:status 200
-                                             :headers {}
-                                             :body short-string})
-                        req (req :headers {"accept-encoding" "gzip"})
-                        resp ((wrap-gzip handler) req)]
-                    (is (not= (get-in resp [:headers "Content-Encoding"])
-                              "gzip"))))
+           (testing "small-response-size"
+                    (let [handler (constantly {:status 200
+                                               :headers {}
+                                               :body short-string})
+                          req (req :headers {"accept-encoding" "gzip"})
+                          resp (response handler req)]
+                      (is (not= (get-in resp [:headers "Content-Encoding"])
+                                "gzip"))))
 
-         (testing "large-response-size"
-                  (let [handler (constantly {:status 200
-                                             :headers {}
-                                             :body long-string})
-                        req (req :headers {"accept-encoding" "gzip"})
-                        resp ((wrap-gzip handler) req)]
-                    (is (= (get-in resp [:headers "Content-Encoding"])
-                           "gzip"))))
+           (testing "large-response-size"
+                    (let [handler (constantly {:status 200
+                                               :headers {}
+                                               :body long-string})
+                          req (req :headers {"accept-encoding" "gzip"})
+                          resp (response handler req)]
+                      (is (= (get-in resp [:headers "Content-Encoding"])
+                             "gzip"))))
 
-         (testing "response-types"
-                  (doseq [body [long-string long-seq long-stream]
-                          :let [handler (constantly {:status 200 :headers {}
-                                                     :body body})
-                                req (req :headers {"accept-encoding" "gzip"})
-                                resp ((wrap-gzip handler) req)]]
-                    (is (= (get-in resp [:headers "Content-Encoding"])
-                           "gzip")))))
+           (testing "response-types"
+                    (doseq [body [long-string long-seq long-stream]
+                            :let [handler (constantly {:status 200 :headers {}
+                                                       :body body})
+                                  req (req :headers {"accept-encoding" "gzip"})
+                                  resp (response handler req)]]
+                      (is (= (get-in resp [:headers "Content-Encoding"])
+                             "gzip"))))))
