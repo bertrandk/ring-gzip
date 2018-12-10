@@ -35,13 +35,13 @@
 
 (defn- unencoded-type?
   [headers]
-  (if (or (headers "Content-Encoding") (headers "content-encoding"))
+  (if (or (get headers "Content-Encoding") (get headers "content-encoding"))
     false
     true))
 
 (defn- supported-type?
   [resp]
-  (let [{:keys [headers body]} resp]
+  (let [{:keys [body]} resp]
     (or (string? body)
         (seq? body)
         (instance? InputStream body)

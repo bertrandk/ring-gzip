@@ -155,6 +155,14 @@
                       (is (not= (get-in resp [:headers "Content-Encoding"])
                                 "gzip"))))
 
+           (testing "nil headers"
+                    (let [handler (constantly {:status 200
+                                               :body short-string})
+                          req (req :headers nil :request-method :head)
+                          resp (response handler req)]
+                      (is (not= (get-in resp [:headers "Content-Encoding"])
+                                "gzip"))))
+
            (testing "small-response-size"
                     (let [handler (constantly {:status 200
                                                :headers {}
